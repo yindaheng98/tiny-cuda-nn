@@ -216,6 +216,17 @@ public:
 		return forward(nullptr, input, output, use_inference_params, prepare_input_gradients);
 	}
 
+	void* forward_return_fxxk_ptr(
+		cudaStream_t stream,
+		const GPUMatrixDynamic<T>& input,
+		GPUMatrixDynamic<COMPUTE_T>* output = nullptr,
+		bool use_inference_params = false,
+		bool prepare_input_gradients = false
+	) {
+		std::unique_ptr<Context> ctx = forward(stream, input, output, use_inference_params, prepare_input_gradients);
+		return ctx->fxxk_ptr;
+	}
+
 	virtual void backward_impl(
 		cudaStream_t stream,
 		const Context& ctx,
