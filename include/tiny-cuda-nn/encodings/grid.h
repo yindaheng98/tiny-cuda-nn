@@ -60,7 +60,8 @@ __global__ void kernel_grid(
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
 	float* __restrict__ dy_dx,
-	uint32_t* __restrict__ encoding_index
+	bool* __restrict__ grid_hit,
+	uint32_t* __restrict__ grid_hit_index
 ) {
 	const uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= num_elements) return;
@@ -94,6 +95,7 @@ __global__ void kernel_grid(
 
 	uint32_t encoding_index_offset = offset_table.data[level] * N_FEATURES_PER_LEVEL;
 	grid += offset_table.data[level] * N_FEATURES_PER_LEVEL;
+	grid_hit += offset_table.data[level] * N_FEATURES_PER_LEVEL;
 	const uint32_t hashmap_size = offset_table.data[level + 1] - offset_table.data[level];
 
 	const float scale = grid_scale(level, log2_per_level_scale, base_resolution);
@@ -119,10 +121,12 @@ __global__ void kernel_grid(
 		return grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
 	};
 	auto grid_val_from_idx = [&](uint32_t index) {
+		grid_hit[index] = true;
 		return *(tvec<T, N_FEATURES_PER_LEVEL, PARAMS_ALIGNED ? sizeof(T) * N_FEATURES_PER_LEVEL : sizeof(T)>*)&grid[index];
 	};
 	auto grid_val = [&](const uvec<N_POS_DIMS>& local_pos) {
 		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+		grid_hit[index] = true;
 		return *(tvec<T, N_FEATURES_PER_LEVEL, PARAMS_ALIGNED ? sizeof(T) * N_FEATURES_PER_LEVEL : sizeof(T)>*)&grid[index];
 	};
 
@@ -167,9 +171,9 @@ __global__ void kernel_grid(
 				}
 			}
 
-			uint32_t the_idx = grid_idx(pos_grid_local);
-			encoding_index[i + (level * (1 << N_POS_DIMS) + idx) * num_elements] = the_idx + encoding_index_offset;
-			result = fma((T)weight, grid_val_from_idx(the_idx), result);
+			uint32_t hit_idx = grid_idx(pos_grid_local);
+			grid_hit_index[i + (level * (1 << N_POS_DIMS) + idx) * num_elements] = hit_idx + encoding_index_offset;
+			result = fma((T)weight, grid_val_from_idx(hit_idx), result);
 		}
 
 		TCNN_PRAGMA_UNROLL
@@ -785,8 +789,10 @@ public:
 		if (prepare_input_gradients) {
 			forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), synced_streams.get(0)};
 		}
-		forward->encoding_index = GPUMatrixDynamic<uint32_t>{(1<<N_POS_DIMS) * m_n_levels, input.n(), synced_streams.get(0), preferred_output_layout()};
-		forward->fxxk_ptr = static_cast<void*>(&forward->encoding_index);
+		forward->grid_hit_index = GPUMatrixDynamic<uint32_t>{(1<<N_POS_DIMS) * m_n_levels, input.n(), synced_streams.get(0), preferred_output_layout()};
+		forward->grid_hit = GPUMatrixDynamic<bool>{1, m_n_params, synced_streams.get(0)};
+		forward->grid_hit.memset_async(synced_streams.get(0), 0);
+		forward->fxxk_ptr = std::vector<void*>{static_cast<void*>(&forward->grid_hit), static_cast<void*>(&forward->grid_hit_index)};
 
 		kernel_grid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
 			num_elements,
@@ -802,7 +808,8 @@ public:
 			forward->positions.data() ? forward->positions.view() : input.view(),
 			encoded_positions_soa,
 			forward->dy_dx.data(),
-			forward->encoding_index.data()
+			forward->grid_hit.data(),
+			forward->grid_hit_index.data()
 		);
 
 		if (output && output->layout() == AoS) {
@@ -1131,7 +1138,8 @@ private:
 	struct ForwardContext : public Context {
 		GPUMatrix<float, RM> positions;
 		GPUMatrix<float, RM> dy_dx;
-		GPUMatrixDynamic<uint32_t> encoding_index;
+		GPUMatrixDynamic<uint32_t> grid_hit_index;
+		GPUMatrixDynamic<bool> grid_hit;
 	};
 
 	uint32_t m_n_features;

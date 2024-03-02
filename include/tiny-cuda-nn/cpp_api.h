@@ -44,7 +44,7 @@ namespace tcnn {
 		Context& operator=(const Context&) = delete;
 		Context(Context&&) = delete;
 		Context& operator=(Context&&) = delete;
-		void* fxxk_ptr;
+		std::vector<void*> fxxk_ptr; // yin: return something you like
 	};
 }
 

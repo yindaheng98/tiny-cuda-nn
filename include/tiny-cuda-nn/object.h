@@ -216,7 +216,7 @@ public:
 		return forward(nullptr, input, output, use_inference_params, prepare_input_gradients);
 	}
 
-	void* forward_return_fxxk_ptr(
+	std::vector<void*> forward_return_fxxk_ptr(
 		cudaStream_t stream,
 		const GPUMatrixDynamic<T>& input,
 		GPUMatrixDynamic<COMPUTE_T>* output = nullptr,
