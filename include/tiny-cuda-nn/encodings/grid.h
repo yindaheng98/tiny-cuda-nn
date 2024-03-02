@@ -92,6 +92,7 @@ __global__ void kernel_grid(
 		return;
 	}
 
+	uint32_t encoding_index_offset = offset_table.data[level] * N_FEATURES_PER_LEVEL;
 	grid += offset_table.data[level] * N_FEATURES_PER_LEVEL;
 	const uint32_t hashmap_size = offset_table.data[level + 1] - offset_table.data[level];
 
@@ -114,6 +115,12 @@ __global__ void kernel_grid(
 		}
 	}
 
+	auto grid_idx = [&](const uvec<N_POS_DIMS>& local_pos) {
+		return grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+	};
+	auto grid_val_from_idx = [&](uint32_t index) {
+		return *(tvec<T, N_FEATURES_PER_LEVEL, PARAMS_ALIGNED ? sizeof(T) * N_FEATURES_PER_LEVEL : sizeof(T)>*)&grid[index];
+	};
 	auto grid_val = [&](const uvec<N_POS_DIMS>& local_pos) {
 		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
 		return *(tvec<T, N_FEATURES_PER_LEVEL, PARAMS_ALIGNED ? sizeof(T) * N_FEATURES_PER_LEVEL : sizeof(T)>*)&grid[index];
@@ -160,7 +167,9 @@ __global__ void kernel_grid(
 				}
 			}
 
-			result = fma((T)weight, grid_val(pos_grid_local), result);
+			uint32_t the_idx = grid_idx(pos_grid_local);
+			encoding_index[i + (level * (1 << N_POS_DIMS) + idx) * num_elements] = the_idx + encoding_index_offset;
+			result = fma((T)weight, grid_val_from_idx(the_idx), result);
 		}
 
 		TCNN_PRAGMA_UNROLL
