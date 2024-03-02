@@ -59,7 +59,8 @@ __global__ void kernel_grid(
 	const T* __restrict__ grid,
 	MatrixView<const float> positions_in,
 	T* __restrict__ encoded_positions,
-	float* __restrict__ dy_dx
+	float* __restrict__ dy_dx,
+	uint32_t* __restrict__ encoding_index
 ) {
 	const uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= num_elements) return;
@@ -775,6 +776,8 @@ public:
 		if (prepare_input_gradients) {
 			forward->dy_dx = GPUMatrix<float, RM>{N_POS_DIMS * m_n_features, input.n(), synced_streams.get(0)};
 		}
+		forward->encoding_index = GPUMatrixDynamic<uint32_t>{(1<<N_POS_DIMS) * m_n_levels, input.n(), synced_streams.get(0), preferred_output_layout()};
+		forward->fxxk_ptr = static_cast<void*>(&forward->encoding_index);
 
 		kernel_grid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
 			num_elements,
@@ -789,7 +792,8 @@ public:
 			use_inference_params ? this->inference_params() : this->params(),
 			forward->positions.data() ? forward->positions.view() : input.view(),
 			encoded_positions_soa,
-			forward->dy_dx.data()
+			forward->dy_dx.data(),
+			forward->encoding_index.data()
 		);
 
 		if (output && output->layout() == AoS) {
@@ -1118,6 +1122,7 @@ private:
 	struct ForwardContext : public Context {
 		GPUMatrix<float, RM> positions;
 		GPUMatrix<float, RM> dy_dx;
+		GPUMatrixDynamic<uint32_t> encoding_index;
 	};
 
 	uint32_t m_n_features;
