@@ -118,7 +118,13 @@ __global__ void kernel_grid(
 	}
 
 	auto grid_idx = [&](const uvec<N_POS_DIMS>& local_pos) {
-		// const uint32_t tile = 64;
+		// const uint32_t tile = 32;
+
+		// uvec<N_POS_DIMS> tiled_pos;
+		// for (uint32_t d = 0; d < N_POS_DIMS; ++d) tiled_pos[d] = (local_pos[d] - (local_pos[d] % tile));
+		// if (grid_hit[grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, tiled_pos) * N_FEATURES_PER_LEVEL])
+		// 	return grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
+
 		// uint32_t total = 1;
 		// for (uint32_t i = 0; i < N_POS_DIMS; ++i) total *= tile;
 		// for (uint32_t k = 0; k < total; ++k) {
@@ -130,6 +136,7 @@ __global__ void kernel_grid(
 		// 	}
 		// 	grid_hit[grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, tiled_pos) * N_FEATURES_PER_LEVEL] = true;
 		// }
+
 		return grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
 	};
 	auto grid_val_from_idx = [&](uint32_t index) {
