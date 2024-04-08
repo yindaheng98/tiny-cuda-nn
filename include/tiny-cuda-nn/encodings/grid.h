@@ -140,12 +140,12 @@ __global__ void kernel_grid(
 		return grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
 	};
 	auto grid_val_from_idx = [&](uint32_t index) {
-		grid_hit[index] = true;
+		for (int i=0;i<N_FEATURES_PER_LEVEL;i++) grid_hit[index+i] = true;
 		return *(tvec<T, N_FEATURES_PER_LEVEL, PARAMS_ALIGNED ? sizeof(T) * N_FEATURES_PER_LEVEL : sizeof(T)>*)&grid[index];
 	};
 	auto grid_val = [&](const uvec<N_POS_DIMS>& local_pos) {
 		const uint32_t index = grid_index<N_POS_DIMS, HASH_TYPE>(grid_type, hashmap_size, resolution, local_pos) * N_FEATURES_PER_LEVEL;
-		grid_hit[index] = true;
+		for (int i=0;i<N_FEATURES_PER_LEVEL;i++) grid_hit[index+i] = true;
 		return *(tvec<T, N_FEATURES_PER_LEVEL, PARAMS_ALIGNED ? sizeof(T) * N_FEATURES_PER_LEVEL : sizeof(T)>*)&grid[index];
 	};
 
