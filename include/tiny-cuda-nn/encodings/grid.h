@@ -811,7 +811,15 @@ public:
 		forward->grid_hit_index = GPUMatrixDynamic<uint32_t>{(1<<N_POS_DIMS) * m_n_levels, input.n(), synced_streams.get(0), preferred_output_layout()};
 		forward->grid_hit = GPUMatrixDynamic<bool>{1, m_n_params, synced_streams.get(0)};
 		forward->grid_hit.memset_async(synced_streams.get(0), 0);
-		forward->fxxk_ptr = std::vector<void*>{static_cast<void*>(&forward->grid_hit), static_cast<void*>(&forward->grid_hit_index)};
+		forward->n_features_per_level = N_FEATURES_PER_LEVEL;
+		forward->m_n_levels = m_n_levels;
+		forward->fxxk_ptr = std::vector<void*>{
+			static_cast<void*>(&forward->grid_hit),
+			static_cast<void*>(&forward->grid_hit_index),
+			static_cast<void*>(&forward->m_n_levels),
+			static_cast<void*>(&forward->n_features_per_level),
+			static_cast<void*>(m_offset_table.data)
+		};
 
 		kernel_grid<T, N_POS_DIMS, N_FEATURES_PER_LEVEL, HASH_TYPE><<<blocks_hashgrid, N_THREADS_HASHGRID, 0, synced_streams.get(0)>>>(
 			num_elements,
@@ -1159,6 +1167,8 @@ private:
 		GPUMatrix<float, RM> dy_dx;
 		GPUMatrixDynamic<uint32_t> grid_hit_index;
 		GPUMatrixDynamic<bool> grid_hit;
+		uint32_t m_n_levels;
+		uint32_t n_features_per_level;
 	};
 
 	uint32_t m_n_features;
