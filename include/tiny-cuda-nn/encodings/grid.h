@@ -118,7 +118,7 @@ __global__ void kernel_grid(
 	}
 
 	auto grid_idx = [&](const uvec<N_POS_DIMS>& local_pos) {
-		// const uint32_t tile = 32;
+		// const uint32_t tile = 16;
 
 		// uvec<N_POS_DIMS> tiled_pos;
 		// for (uint32_t d = 0; d < N_POS_DIMS; ++d) tiled_pos[d] = (local_pos[d] - (local_pos[d] % tile));
